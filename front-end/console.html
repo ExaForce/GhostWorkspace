@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GhostWorkspace</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #5d6677;
+    --border: #dde1e8; --accent: #2f6fec; --accent-text: #ffffff;
+    --danger: #c93838; --ok: #1d8a4e; --code: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13161b; --panel: #1b1f26; --text: #e6e9ef; --muted: #9aa3b4;
+      --border: #2c323c; --accent: #5b8ff9; --accent-text: #0d1117;
+      --danger: #ef6b6b; --ok: #4cc38a; --code: #111419;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 18px; margin: 0 0 12px; }
+  .settings { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; max-width: 1300px; }
+  main { display: grid; grid-template-columns: 270px 1fr; gap: 20px; padding: 20px; max-width: 1340px; }
+  @media (max-width: 820px) { main, .settings { grid-template-columns: 1fr; } }
+  aside, .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  aside { align-self: start; position: sticky; top: 12px; }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 10px 4px 6px; }
+  aside h2:first-child { margin-top: 0; }
+  .cmd { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 6px; cursor: pointer; }
+  .cmd:hover { background: var(--code); }
+  .cmd input { margin-top: 3px; }
+  .cmd small { display: block; color: var(--muted); font-size: 12px; }
+  label.f { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=url], input[type=password], input[type=number], input[type=datetime-local],
+  select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  input[type=file] { width: 100%; font: inherit; color: var(--muted); }
+  textarea { min-height: 80px; resize: vertical; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .full { grid-column: 1 / -1; }
+  .card { margin-bottom: 16px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .card-head h3 { margin: 0; font-size: 15px; }
+  .card-head code { color: var(--muted); font-size: 12px; }
+  .desc { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .status { font-size: 13px; }
+  .status.ok { color: var(--ok); } .status.err { color: var(--danger); }
+  pre { background: var(--code); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin: 12px 0 0;
+        max-height: 420px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  pre:empty { display: none; }
+  .check { display: flex; gap: 6px; align-items: center; font-size: 13px; padding-top: 22px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .empty { color: var(--muted); text-align: center; padding: 48px 20px; border: 1px dashed var(--border); border-radius: 10px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .toolbar span { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>GhostWorkspace</h1>
+  <div class="settings">
+    <div>
+      <label class="f" for="url">Web app URL *</label>
+      <input type="url" id="url" placeholder="https://script.google.com/macros/s/…/exec">
+    </div>
+    <div>
+      <label class="f" for="key">API key *</label>
+      <input type="password" id="key" placeholder="API_KEY script property" autocomplete="off">
+    </div>
+    <div>
+      <label class="f" for="as">Run as (optional)</label>
+      <input type="text" id="as" placeholder="user@exaforce.com (DWD)">
+    </div>
+  </div>
+</header>
+
+<main>
+  <aside id="sidebar"></aside>
+  <section>
+    <div class="toolbar">
+      <span id="selCount">No commands selected</span>
+      <button class="primary" id="sendAll" hidden>Send all</button>
+    </div>
+    <div id="cards"><div class="empty">Tick one or more commands on the left to build their forms.</div></div>
+  </section>
+</main>
+
+<script>
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const SEND_UPDATES = [['', 'Default'], ['all', 'All guests'], ['externalOnly', 'External only'], ['none', 'None']];
+
+const COMMANDS = {
+  enableAPIs: {
+    group: 'Misc', label: 'Enable APIs', desc: 'Enable all necessary APIs',
+    fields: [],
+  },
+  whoami: {
+    group: 'Identity', label: 'Who am I', desc: 'Account, scopes and script info for the identity the call runs as.',
+    fields: [],
+  },
+  listOrgUsers: {
+    group: 'Identity', label: 'List org users', desc: 'Directory users. The acting account must be an admin.',
+    fields: [
+      { name: 'query', label: 'Directory query', placeholder: 'orgUnitPath=/Engineering' },
+      { name: 'includeSuspended', label: 'Include suspended', type: 'checkbox' },
+    ],
+  },
+  listDriveFiles: {
+    group: 'Drive', label: 'List Drive files', desc: 'Files visible to the acting user.',
+    fields: [
+      { name: 'q', label: 'Drive query', placeholder: "name contains 'report' and trashed = false" },
+      { name: 'max', label: 'Max results', type: 'number', placeholder: '500' },
+    ],
+  },
+  downloadFile: {
+    group: 'Drive', label: 'Download file', desc: 'Docs/Sheets/Slides export to Office formats unless you pick another.',
+    fields: [
+      { name: 'fileId', label: 'File ID', required: true },
+      { name: 'exportMimeType', label: 'Export as (Google files)', type: 'select',
+        options: [['', 'Default (Office)'], ['application/pdf', 'PDF'], ['text/plain', 'Plain text'], ['text/csv', 'CSV (first sheet)']] },
+    ],
+  },
+  downloadFolder: {
+    group: 'Drive', label: 'Download folder', desc: 'Whole folder, recursively, as a zip (25 MB cap).',
+    fields: [{ name: 'folderId', label: 'Folder ID', required: true }],
+  },
+  uploadFile: {
+    group: 'Drive', label: 'Upload file', desc: 'Uploads one local file.',
+    fields: [
+      { name: 'file', label: 'File', type: 'file', required: true },
+      { name: 'parentId', label: 'Parent folder ID', placeholder: 'My Drive root if empty' },
+    ],
+  },
+  uploadFolder: {
+    group: 'Drive', label: 'Upload folder', desc: 'Recreates a local folder (with subfolders) in Drive.',
+    fields: [
+      { name: 'folder', label: 'Folder', type: 'folder', required: true },
+      { name: 'name', label: 'Name in Drive', placeholder: 'Same as local folder' },
+      { name: 'parentId', label: 'Parent folder ID', placeholder: 'My Drive root if empty' },
+    ],
+    transform(p) { if (!p.name) p.name = p._folderName; delete p._folderName; },
+  },
+  shareDriveFile: {
+    group: 'Drive', label: 'Share file', desc: 'Adds a permission to a file or folder.',
+    fields: [
+      { name: 'fileId', label: 'File ID', required: true },
+      { name: 'type', label: 'Share with', type: 'select', options: [['user', 'User'], ['group', 'Group'], ['domain', 'Whole domain'], ['anyone', 'Anyone with link']] },
+      { name: 'email', label: 'Email (user/group)', placeholder: 'someone@exaforce.com' },
+      { name: 'role', label: 'Role', type: 'select', options: [['reader', 'Viewer'], ['commenter', 'Commenter'], ['writer', 'Editor']] },
+      { name: 'domain', label: 'Domain (domain type)', placeholder: 'exaforce.com' },
+      { name: 'notify', label: 'Send notification email', type: 'checkbox', default: true },
+      { name: 'message', label: 'Message', type: 'textarea' },
+    ],
+  },
+  deleteFile: {
+    group: 'Drive', label: 'Delete file', desc: 'Moves to trash unless "permanent" is ticked.', danger: true,
+    confirm: 'Delete this file?',
+    fields: [
+      { name: 'fileId', label: 'File ID', required: true },
+      { name: 'permanent', label: 'Delete permanently (skip trash)', type: 'checkbox' },
+    ],
+  },
+  listEmails: {
+    group: 'Gmail', label: 'List emails', desc: 'Headers and snippets for matching messages.',
+    fields: [
+      { name: 'q', label: 'Gmail search', placeholder: 'in:inbox is:unread' },
+      { name: 'max', label: 'Max results (≤100)', type: 'number', placeholder: '20' },
+    ],
+  },
+  sendEmail: {
+    group: 'Gmail', label: 'Send email', desc: 'Sends from the acting account.',
+    confirm: 'Send this email?',
+    fields: [
+      { name: 'to', label: 'To', required: true, placeholder: 'a@x.com, b@x.com' },
+      { name: 'cc', label: 'Cc' },
+      { name: 'bcc', label: 'Bcc' },
+      { name: 'subject', label: 'Subject', full: true },
+      { name: 'body', label: 'Body', type: 'textarea' },
+      { name: 'html', label: 'Body is HTML', type: 'checkbox' },
+    ],
+  },
+  listCalendarInvites: {
+    group: 'Calendar', label: 'List calendar events', desc: 'Upcoming events; tick "invites only" to hide ones you organized.',
+    fields: [
+      { name: 'days', label: 'Days ahead', type: 'number', placeholder: '30' },
+      { name: 'q', label: 'Text search' },
+      { name: 'calendarId', label: 'Calendar ID', placeholder: 'primary' },
+      { name: 'invitesOnly', label: 'Invites only', type: 'checkbox' },
+    ],
+  },
+  createCalendarRecord: {
+    group: 'Calendar', label: 'Create event', desc: `Times use your browser time zone (${TZ}).`,
+    fields: [
+      { name: 'title', label: 'Title', required: true, full: true },
+      { name: 'start', label: 'Start', type: 'datetime-local', required: true },
+      { name: 'end', label: 'End', type: 'datetime-local', required: true, hint: 'All-day: end date is exclusive.' },
+      { name: 'allDay', label: 'All-day (uses dates only)', type: 'checkbox' },
+      { name: 'attendees', label: 'Attendees', placeholder: 'a@x.com, b@x.com' },
+      { name: 'location', label: 'Location' },
+      { name: 'sendUpdates', label: 'Send invites to', type: 'select', options: SEND_UPDATES },
+      { name: 'meet', label: 'Add Google Meet link', type: 'checkbox' },
+      { name: 'calendarId', label: 'Calendar ID', placeholder: 'primary' },
+      { name: 'description', label: 'Description', type: 'textarea' },
+    ],
+    transform(p) {
+      if (p.allDay) { p.start = p.start.slice(0, 10); p.end = p.end.slice(0, 10); }
+      delete p.allDay;
+      p.timeZone = TZ;
+    },
+  },
+  deleteCalendarRecord: {
+    group: 'Calendar', label: 'Delete event', desc: 'Removes an event by ID.', danger: true,
+    confirm: 'Delete this calendar event?',
+    fields: [
+      { name: 'eventId', label: 'Event ID', required: true },
+      { name: 'sendUpdates', label: 'Notify guests', type: 'select', options: SEND_UPDATES },
+      { name: 'calendarId', label: 'Calendar ID', placeholder: 'primary' },
+    ],
+  },
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const selected = new Set();
+
+// --- Settings persistence (URL and "run as" only; the key is never stored) ---
+['url', 'as'].forEach(id => {
+  try { $('#' + id).value = localStorage.getItem('wsapi_' + id) || ''; } catch (e) {}
+  $('#' + id).addEventListener('change', e => { try { localStorage.setItem('wsapi_' + id, e.target.value.trim()); } catch (err) {} });
+});
+
+// --- Sidebar ---
+function renderSidebar() {
+  const groups = {};
+  Object.entries(COMMANDS).forEach(([name, c]) => (groups[c.group] = groups[c.group] || []).push([name, c]));
+  $('#sidebar').innerHTML = Object.entries(groups).map(([g, cmds]) =>
+    `<h2>${esc(g)}</h2>` + cmds.map(([name, c]) =>
+      `<label class="cmd"><input type="checkbox" value="${name}"><span>${esc(c.label)}<small>${name}</small></span></label>`
+    ).join('')
+  ).join('');
+  $('#sidebar').addEventListener('change', e => {
+    if (e.target.type !== 'checkbox') return;
+    e.target.checked ? selected.add(e.target.value) : selected.delete(e.target.value);
+    renderCards();
+  });
+}
+
+// --- Cards ---
+function fieldHtml(cmd, f) {
+  const id = `${cmd}__${f.name}`;
+  const cls = f.type === 'textarea' || f.full ? ' class="full"' : '';
+  if (f.type === 'checkbox') {
+    return `<div${cls}><label class="check"><input type="checkbox" id="${id}"${f.default ? ' checked' : ''}> ${esc(f.label)}</label></div>`;
+  }
+  const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
+  let input;
+  if (f.type === 'select') input = `<select id="${id}">${f.options.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>`;
+  else if (f.type === 'textarea') input = `<textarea id="${id}"${ph}></textarea>`;
+  else if (f.type === 'file') input = `<input type="file" id="${id}">`;
+  else if (f.type === 'folder') input = `<input type="file" id="${id}" webkitdirectory multiple>`;
+  else input = `<input type="${f.type || 'text'}" id="${id}"${ph}>`;
+  return `<div${cls}><label class="f" for="${id}">${esc(f.label)}${f.required ? ' *' : ''}</label>${input}` +
+         (f.hint ? `<div class="hint">${esc(f.hint)}</div>` : '') + `</div>`;
+}
+
+function buildCard(cmd) {
+  const c = COMMANDS[cmd];
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.id = 'card-' + cmd;
+  el.innerHTML = `
+    <div class="card-head"><h3>${esc(c.label)}</h3><code>${cmd}</code></div>
+    <p class="desc">${esc(c.desc)}</p>
+    ${c.fields.length ? `<div class="grid">${c.fields.map(f => fieldHtml(cmd, f)).join('')}</div>` : ''}
+    <div class="actions">
+      <button class="${c.danger ? 'danger' : 'primary'}" data-act="send">Send</button>
+      <button data-act="copy" hidden>Copy result</button>
+      <button data-act="save" hidden>Save file</button>
+      <span class="status"></span>
+    </div>
+    <pre></pre>`;
+  el.querySelector('[data-act=send]').onclick = () => send(cmd);
+  el.querySelector('[data-act=copy]').onclick = () => navigator.clipboard.writeText(el.querySelector('pre').textContent);
+  return el;
+}
+
+function renderCards() {
+  const wrap = $('#cards');
+  // Keep existing cards (and what's typed in them); add/remove only what changed, in sidebar order.
+  Object.keys(COMMANDS).forEach(cmd => {
+    const existing = $('#card-' + cmd);
+    if (selected.has(cmd) && !existing) wrap.appendChild(buildCard(cmd));
+    if (!selected.has(cmd) && existing) existing.remove();
+  });
+  Object.keys(COMMANDS).forEach(cmd => { const c = $('#card-' + cmd); if (c) wrap.appendChild(c); });
+
+  const empty = wrap.querySelector('.empty');
+  if (selected.size && empty) empty.remove();
+  if (!selected.size && !empty) wrap.innerHTML = '<div class="empty">Tick one or more commands on the left to build their forms.</div>';
+
+  $('#selCount').textContent = selected.size ? `${selected.size} command${selected.size > 1 ? 's' : ''} selected` : 'No commands selected';
+  $('#sendAll').hidden = selected.size < 2;
+}
+
+// --- Request building ---
+const toBase64 = file => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1] || '');
+  r.onerror = () => reject(new Error('Could not read ' + file.name));
+  r.readAsDataURL(file);
+});
+
+async function collect(cmd) {
+  const c = COMMANDS[cmd];
+  const p = {};
+  for (const f of c.fields) {
+    const el = document.getElementById(`${cmd}__${f.name}`);
+    if (f.type === 'checkbox') { p[f.name] = el.checked; continue; }
+
+    if (f.type === 'file') {
+      const file = el.files[0];
+      if (!file) throw new Error(`${f.label} is required.`);
+      Object.assign(p, { name: file.name, mimeType: file.type || 'application/octet-stream', content: await toBase64(file) });
+      continue;
+    }
+    if (f.type === 'folder') {
+      const files = [...el.files];
+      if (!files.length) throw new Error(`${f.label} is required.`);
+      p._folderName = files[0].webkitRelativePath.split('/')[0];
+      p.files = await Promise.all(files.map(async file => ({
+        path: file.webkitRelativePath.split('/').slice(1).join('/') || file.name,
+        mimeType: file.type || 'application/octet-stream',
+        content: await toBase64(file),
+      })));
+      continue;
+    }
+
+    let v = el.value.trim();
+    if (!v) { if (f.required) throw new Error(`${f.label} is required.`); continue; }
+    if (f.type === 'number') v = Number(v);
+    if (f.type === 'datetime-local' && v.length === 16) v += ':00';
+    p[f.name] = v;
+  }
+  if (c.transform) c.transform(p);
+  return p;
+}
+
+async function send(cmd) {
+  const card = $('#card-' + cmd);
+  const btn = card.querySelector('[data-act=send]');
+  const status = card.querySelector('.status');
+  const pre = card.querySelector('pre');
+  const saveBtn = card.querySelector('[data-act=save]');
+  const copyBtn = card.querySelector('[data-act=copy]');
+  const setStatus = (text, cls) => { status.textContent = text; status.className = 'status ' + (cls || ''); };
+
+  const url = $('#url').value.trim();
+  const key = $('#key').value;
+  if (!url || !key) { setStatus('Set the web app URL and API key first.', 'err'); return; }
+  if (COMMANDS[cmd].confirm && !confirm(COMMANDS[cmd].confirm)) return;
+
+  btn.disabled = true;
+  saveBtn.hidden = true;
+  setStatus('Sending…');
+  const t0 = performance.now();
+
+  try {
+    const payload = Object.assign({ command: cmd, key }, await collect(cmd));
+    const as = $('#as').value.trim();
+    if (as) payload.as = as;
+
+    // text/plain keeps this a "simple" CORS request; Apps Script can't answer preflights.
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { throw new Error(`Response wasn't JSON (HTTP ${res.status}). Check the URL ends in /exec and access is "Anyone".\n\n${text.slice(0, 400)}`); }
+
+    const ms = Math.round(performance.now() - t0);
+    const shown = JSON.stringify(data, (k, v) => (k === 'base64' && typeof v === 'string') ? `<${Math.round(v.length * 0.75).toLocaleString()} bytes, use Save file>` : v, 2);
+    pre.textContent = shown;
+    copyBtn.hidden = false;
+
+    if (data.ok) {
+      const count = data.result && data.result.count;
+      setStatus(`OK · ${ms} ms${count !== undefined ? ` · ${count} item${count === 1 ? '' : 's'}` : ''}`, 'ok');
+      if (data.result && data.result.base64) {
+        saveBtn.hidden = false;
+        saveBtn.onclick = () => saveBase64(data.result.base64, data.result.name, data.result.mimeType);
+      }
+    } else {
+      setStatus('Error', 'err');
+    }
+  } catch (err) {
+    setStatus('Failed', 'err');
+    pre.textContent = err.message + (err instanceof TypeError
+      ? '\n\nThe request never reached the script (network or CORS). Check the URL, that the deployment is live with access "Anyone", and try serving this page over http instead of opening it as a file.'
+      : '');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function saveBase64(b64, name, mime) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
+  a.download = name || 'download';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+$('#sendAll').onclick = async () => {
+  for (const cmd of Object.keys(COMMANDS)) if (selected.has(cmd)) await send(cmd);
+};
+
+renderSidebar();
+</script>
+</body>
+</html>
