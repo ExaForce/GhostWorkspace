@@ -32,21 +32,23 @@ Those commands fall into a few groups that map directly to the built-in services
 
 ## Set-up
 
-To setup, access to script.google.com is needed for the compromised user. This can be achieved through getting access to their account through session hijacking, which can be achieved through phishing attacks such as Adversary-In-The-Middle phishing. Currently, there is no programmatic way of 
+To setup, access to script.google.com is needed for the compromised user. This can be achieved through getting access to their account through session hijacking, which can be achieved through phishing attacks such as Adversary-In-The-Middle phishing. Currently, there is no programmatic way of creating 
 
 On script.google.com, a new project needs to be created, where the code inside the directory **back-end** from **GhostWorkspace** can be uploaded. The two files from the directory are the metadata file `appsscript.json`, and the code of the backdoor `main.js`.
 
-![alt text](img/setup-backend.png)
+![alt text](/img/setup-backend.png)
 
 `appsscript.json` contains a list of scopes the app needs and API Services which need to be enabled. When the file is added, the service APIs are enabled by default, but the scopes will require authorization by the user owning the app.
 
-![alt text](img/api-services.png)
+![alt text](/img/api-services.png)
+
+![alt text](/img/authorize%20scopes.png)
 
 The script needs an API Key, which is just a parameter to allow the script to know the requester is the attacker and not some other entity. The `API_KEY` value can be anything. 
 
 If the DWD route is chosen, the attacker needs to add the Service Account and scopes to DWD configurations as seen previously and provide the SA JSON Key on the variable `SA_KEY`.
 
-![alt text](img/system-properties.png)
+![alt text](/img/system-properties.png)
 
 ## UI Interface
 
@@ -54,8 +56,8 @@ Upon setting up the back-end backdoor, it can be accessed through a front-end si
 
 It will require the `API_KEY` value defined before to validate the ownership of the script. Upon providing them, it will allow execution of the tasks.
 
-![alt text](img/user-test.png)
+![alt text](/img/user-test.png)
 
 If DWD is configured, it will only request the email of the target user to impersonate and execute tasks on their behalf.
 
-![alt text](img/dwd-test.png)
+![alt text](/img/dwd-test.png)
